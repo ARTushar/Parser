@@ -1,0 +1,10 @@
+*.o
+*.out
+lexer.c
+y.tab.c
+y.tab.h
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
