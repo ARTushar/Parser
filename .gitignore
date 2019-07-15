@@ -3,6 +3,7 @@
 lexer.c
 y.tab.c
 y.tab.h
+1605070_log.txt
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json

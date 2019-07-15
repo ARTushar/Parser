@@ -49,7 +49,7 @@ DIGIT [0-9]+
 "double" {return DOUBLE;}
 "void" {return VOID;}
 "return" {return RETURN;}
-
+"println" {return PRINTLN;}
  /* identifying constants */
 
 {DIGIT} {
@@ -160,14 +160,14 @@ DIGIT [0-9]+
     return MULOP;
 }
 
-\+\+|-- {
+\+\+ {
     // fprintf(tokenout, "<INCOP, %s> ", yytext);
     // print_log("INCOP", yytext);
-    symbol = new SymbolInfo(string(yytext), "INCOP");
-    yylval.info = symbol;
     return INCOP;
 
 }
+
+-- { return DECOP; }
 
 \<=|\<|\>=|\>|==|!= {
     // fprintf(tokenout, "<RELOP, %s> ", yytext);

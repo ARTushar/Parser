@@ -1,5 +1,3 @@
-#!/bin/bash
-
 bison -d -y 1605070.y
 g++ -w -c -o bison.o y.tab.c 
 flex -o lexer.c 1605070.l 
