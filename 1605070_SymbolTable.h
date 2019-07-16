@@ -19,6 +19,7 @@ public:
     void enterScope();
     void exitScope();
     bool insert(const string& name, const string& type);
+    bool insert(SymbolInfo* info);
     bool remove(const string& name);
     SymbolInfo* lookUp(const string& name);
     void print();
