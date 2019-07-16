@@ -6,6 +6,7 @@
 #define SYMBOL_TABLE_SYMBOLINFO_H
 
 #include <string>
+#include <vector>
 using namespace std;
 
 class SymbolInfo {
@@ -15,6 +16,8 @@ private:
     SymbolInfo *next;
 
 public:
+    vector<string> parameterList;
+
     SymbolInfo();
 
     SymbolInfo(string name, string type);

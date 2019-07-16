@@ -62,11 +62,11 @@ bool ScopeTable::insert(const string &name, const string &type) {
     else {
         SymbolInfo *last = symbolBucket[index];
         listLength++;
-        while (last->getNext() && last->getName() != name && last->getType() != type) {
+        while (last->getNext() && last->getName() != name) {
             listLength++;
             last = last->getNext();
         }
-        if(last->getName() == name && last->getType() == type) {
+        if(last->getName() == name) {
             //cout << "<" + name + "," + type + ">" + " already exits in current ScopeTable" << endl << endl;
             // fprintf(logout, "<%s, %s> already exists in current ScopeTable\n", name.c_str(), type.c_str());
             return false;
@@ -74,6 +74,24 @@ bool ScopeTable::insert(const string &name, const string &type) {
         else last->setNext(symbol);
     }
     //printf("Inserted in ScopeTable# %d at position %d, %d\n\n", id, index, listLength);
+    return true;
+}
+
+bool ScopeTable::insert(SymbolInfo* info) {
+    int listLength = 0;
+    int index = hashFunction(info->getName());
+    assert(index >= 0 and index < totalBucket);
+    if (symbolBucket[index] == nullptr)
+        symbolBucket[index] = info;
+    else {
+        SymbolInfo *last = symbolBucket[index];
+        listLength++;
+        while (last->getNext()) {
+            listLength++;
+            last = last->getNext();
+        }
+        last->setNext(info);
+    }
     return true;
 }
 
@@ -127,22 +145,22 @@ bool ScopeTable::deleteSymbol(const string &name) {
 }
 
 void ScopeTable::print() {
-    //cout << "ScopeTable # " << id << endl;
+    cout << "ScopeTable # " << id << endl;
     // fprintf(logout, "ScopeTable # %d\n", id);
     for (int i = 0; i < totalBucket; i++) {
         if(symbolBucket[i] == nullptr) continue;
-        //cout << i << " ---> ";
+        cout << i << " ---> ";
         // fprintf(logout, "%d ---> ", i);
         SymbolInfo *current = symbolBucket[i];
         while (current != nullptr) {
-            //cout << "< " << current->getName() << " : " << current->getType() << ">  ";
+            cout << "< " << current->getName() << " : " << current->getType() << ">  ";
             // fprintf(logout, "<%s : %s> ", current->getName().c_str(), current->getType().c_str());
             current = current->getNext();
         }
-        //cout << endl;
+        cout << endl;
         // fprintf(logout, "\n");
     }
-    //cout << endl;
+    cout << endl;
     // fprintf(logout, "\n");
 }
 

@@ -23,6 +23,8 @@ public:
     // working methods
     bool insert(const string& name, const string& type);
 
+    bool insert(SymbolInfo* info);
+
     SymbolInfo *lookUp(const string& name);
 
     bool deleteSymbol(const string& name);

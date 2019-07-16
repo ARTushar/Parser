@@ -32,6 +32,10 @@ bool SymbolTable::insert(const string& name, const string& type) {
     return currentScopeTable->insert(name, type);
 }
 
+bool SymbolTable::insert(SymbolInfo* info) {
+    return currentScopeTable->insert(info);
+}
+
 bool SymbolTable::remove(const string& name) {
     return currentScopeTable->deleteSymbol(name);
 }
