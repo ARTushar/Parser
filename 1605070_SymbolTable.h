@@ -22,6 +22,7 @@ public:
     bool insert(SymbolInfo* info);
     bool remove(const string& name);
     SymbolInfo* lookUp(const string& name);
+    SymbolInfo* lookUpCurrent(const string& name);
     void print();
     void printAll();
 

@@ -53,6 +53,10 @@ SymbolInfo *SymbolTable::lookUp(const string& name) {
 
 }
 
+SymbolInfo *SymbolTable::lookUpCurrent(const string& name) {
+    return currentScopeTable->lookUp(name);
+}
+
 void SymbolTable::print() {
     currentScopeTable->print();
 }

@@ -4,6 +4,7 @@ lexer.c
 y.tab.c
 y.tab.h
 1605070_log.txt
+1605070_error.txt
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json

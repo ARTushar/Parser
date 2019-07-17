@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <string>
+#include <sstream>
 #include "1605070_SymbolTable.h"
 
 // #define YYSTYPE SymbolInfo*
@@ -14,6 +15,7 @@ extern "C" int yylex();
 extern FILE *yyin;
 extern int line_count;
 FILE *logout  = fopen("1605070_log.txt","w");
+FILE *errorout = fopen("1605070_error.txt", "w");
 
 SymbolTable *table = new SymbolTable(30, logout);
 
@@ -146,6 +148,7 @@ function_first_part_1 : type_specifier ID LPAREN parameter_list RPAREN {
 	SymbolInfo* symbol = new SymbolInfo($2->getName(), "ID");
 	symbol->parameterList.push_back($1->getName());
 	symbol->parameterList.insert(symbol->parameterList.end(), $4->parameterList.begin(), $4->parameterList.end());
+	symbol->parameterList.push_back("function");
 
 	table->insert(symbol);
 
@@ -162,6 +165,7 @@ function_first_part_2:  type_specifier ID LPAREN RPAREN {
 	$$->setName(str);
 	SymbolInfo* symbol = new SymbolInfo($2->getName(), "ID");
 	symbol->parameterList.push_back($1->getName());
+	symbol->parameterList.push_back("function");
 
 	table->insert(symbol);
 
@@ -180,6 +184,11 @@ parameter_list  : parameter_list COMMA type_specifier ID {
 	$$->parameterList.insert($$->parameterList.end(), $1->parameterList.begin(), $1->parameterList.end());
 	$$->parameterList.push_back($3->getName());
 	fprintf(logout, "\n%s\n\n", str.c_str());
+
+	SymbolInfo* symbol = new SymbolInfo($4->getName(), "ID");
+	symbol->parameterList.push_back($3->getName());
+	symbol->parameterList.push_back("normal");
+
 	delete $1;
 	delete $3;
 	delete $4;
@@ -202,6 +211,11 @@ parameter_list  : parameter_list COMMA type_specifier ID {
 			 $$->setName(str);
 			 $$->parameterList.push_back($1->getName());
 			 fprintf(logout, "\n%s\n\n", str.c_str());
+
+			 SymbolInfo* symbol = new SymbolInfo($2->getName(), "ID");
+			 symbol->parameterList.push_back($1->getName());
+			 symbol->parameterList.push_back("normal");
+
 			 delete $1;
 			 delete $2;
 		 }
@@ -246,6 +260,40 @@ var_declaration : type_specifier declaration_list SEMICOLON
 		string str = $1->getName() + " " + $2->getName() + ";\n";
 		$$->setName(str);
 		fprintf(logout, "\n%s\n\n", str.c_str());
+
+		stringstream tokenize($2->getName());
+		string temp;
+
+		while(getline(tokenize, temp, ',')){
+			int found = temp.find("[");
+			if(found == -1) {
+				bool got = table->lookUpCurrent(temp);
+				if(got) {
+					fprintf(errorout, "Error at line %d : redeclaration of '%s'\n\n", line_count, temp);
+				} else {
+					SymbolInfo* symbol = new SymbolInfo(temp, "ID");
+					symbol->parameterList.push_back($1->getName());
+					symbol->parameterList.push_back("normal");
+					table->insert(symbol);
+				}
+			}
+			else{
+				int found2 = temp.find("]", found+1);
+				string size = temp.substr(found+1, found2-found-1);
+				string content = temp.substr(0,found);
+				bool got = table->lookUpCurrent(content);
+				if(got) {
+					fprintf(errorout, "Error at line %d : redeclaration of '%s'\n\n", line_count, content);
+				} else {
+					SymbolInfo* symbol = new SymbolInfo(content, "ID");
+					symbol->parameterList.push_back($1->getName());
+					symbol->parameterList.push_back(size);
+					symbol->parameterList.push_back("array");
+					table->insert(symbol);
+				}
+			}
+		}
+
 		delete $1;
 		delete $2;
 	}
@@ -290,8 +338,6 @@ declaration_list : declaration_list COMMA ID {
 	$$->setName(str);
 	fprintf(logout, "\n%s\n\n", str.c_str());
 
-	table->insert($3->getName(), "ID");
-
 	delete $1;
 	delete $3;
 }
@@ -301,8 +347,6 @@ declaration_list : declaration_list COMMA ID {
 			   string str = $1->getName() + "," + $3->getName() + "[" + $5->getName() + "]";
 			   $$->setName(str);
 			   fprintf(logout, "\n%s\n\n", str.c_str());
-
-			   table->insert($3->getName(), "ID");
 
 			   delete $1;
 			   delete $3;
@@ -315,8 +359,6 @@ declaration_list : declaration_list COMMA ID {
 			   $$->setName(str);
 			   fprintf(logout, "\n%s\n\n", str.c_str());
 
-			   table->insert($1->getName(), "ID");
-
 			   delete $1;
 
 		   }
@@ -326,10 +368,6 @@ declaration_list : declaration_list COMMA ID {
 			   string str = $1->getName() + "[" + $3->getName() + "]";
 			   $$->setName(str);
 			   fprintf(logout, "\n%s\n\n", str.c_str());
-			   
-			   SymbolInfo *symbol = new SymbolInfo($1->getName(), "ID");
-			   symbol->parameterList.push_back($3->getName());
-			   table->insert(symbol);
 
 			   delete $1;
 			   delete $3;
@@ -426,8 +464,6 @@ statement : var_declaration {
 		  $$->setName(str);
 		  fprintf(logout, "\n%s\n\n", str.c_str());
 		  
-		  table->insert($3->getName(), "ID");
-
 		  delete $3;
 	  }
 	  | RETURN expression SEMICOLON {
@@ -462,10 +498,21 @@ variable : ID {
 	$$ = new SymbolInfo();
 	string str = $1->getName();
 	$$->setName(str);
+	SymbolInfo* symbol = table->lookUp($1->getName());
+	if(symbol){
+		if(symbol->parameterList[symbol->parameterList.size()-1] == "normal") {
+			$$->setType(symbol->parameterList[0]);
+		}
+		else{
+			$$->setType("error");
+			fprintf(errorout, "Error at line %d : lvalue required\n\n", line_count);
+		}
+	} else{
+		$$->setType("error");
+		fprintf(errorout, "Error at line %d : '%s' undeclared\n\n", line_count, $1->getName());
+	}
 	fprintf(logout, "\n%s\n\n", str.c_str());
 	
-	table->insert($1->getName(), "ID");
-
 	delete $1;
 }
 	 | ID LTHIRD expression RTHIRD {
@@ -474,9 +521,19 @@ variable : ID {
 		 string str = $1->getName() + "[" + $3->getName() + "]";
 		 $$->setName(str);
 		 fprintf(logout, "\n%s\n\n", str.c_str());
-		 
-		 table->insert($1->getName(), "ID");
-		 
+
+		 SymbolInfo* symbol = table->lookUp($1->getName());
+		 if(symbol){
+			 if(symbol->parameterList[symbol->parameterList.size()-1] == "array") $$->setType(symbol->parameterList[0]);
+			 else{
+			 	 $$->setType("error");
+				 fprintf(errorout, "Error at line %d : subscripted value is not array\n\n", line_count);
+			 }
+		 }   else{
+				 $$->setType("error");
+				 fprintf(errorout, "Error at line %d : undeclared\n\n", line_count);
+		}
+
 		 delete $1;
 		 delete $3;
 	 }
@@ -495,6 +552,11 @@ expression : logic_expression {
 		   $$ = new SymbolInfo();
 		   string str = $1->getName() + " = " + $3->getName();
 		   $$->setName(str);
+
+		   if($1->getType() != $3->getType()) {
+			   fprintf(errorout, "Error at line %d : operands types mismatch\n\n", line_count);
+		   }
+
 		   fprintf(logout, "\n%s\n\n", str.c_str());
 		   delete $1;
 		   delete $3;
@@ -506,6 +568,7 @@ logic_expression : rel_expression {
 	$$ = new SymbolInfo();
 	string str = $1->getName();
 	$$->setName(str);
+	$$->setType($1->getType());
 	fprintf(logout, "\n%s\n\n", str.c_str());
 	delete $1;
 }
@@ -514,6 +577,7 @@ logic_expression : rel_expression {
 			 $$ = new SymbolInfo();
 		  	 string str = $1->getName() + " " + $2->getName() + " " + $3->getName();
 		  	 $$->setName(str);
+			 $$->setType("int");
 		  	 fprintf(logout, "\n%s\n\n", str.c_str());
 			 delete $1;
 			 delete $2;
@@ -526,6 +590,7 @@ rel_expression	: simple_expression {
 	$$ = new SymbolInfo();
 	string str = $1->getName();
 	$$->setName(str);
+	$$->setType($1->getType());
 	fprintf(logout, "\n%s\n\n", str.c_str());
 	delete $1;
 }
@@ -534,6 +599,7 @@ rel_expression	: simple_expression {
 			$$ = new SymbolInfo();
 		  	string str = $1->getName() + " " + $2->getName() + " " + $3->getName();
 		  	$$->setName(str);
+			$$->setType("int");
 		  	fprintf(logout, "\n%s\n\n", str.c_str());
 			delete $1;
 			delete $2;
@@ -546,6 +612,7 @@ simple_expression : term {
 	$$ = new SymbolInfo();
 	string str = $1->getName();
 	$$->setName(str);
+	$$->setType($1->getType());
 	fprintf(logout, "\n%s\n\n", str.c_str());
 	delete $1;
 }
@@ -554,6 +621,10 @@ simple_expression : term {
 			  $$ = new SymbolInfo();
 		  	  string str = $1->getName() + " " + $2->getName() + " " + $3->getName();
 		  	  $$->setName(str);
+
+			  if($1->getType() == "double" || $2->getType() == "double")	$$->setType("double");
+			  else $$->setType("int");
+
 		  	  fprintf(logout, "\n%s\n\n", str.c_str());
 			  delete $1;
 			  delete $2;
@@ -566,6 +637,7 @@ term :	unary_expression {
 	$$ = new SymbolInfo();
 	string str = $1->getName();
 	$$->setName(str);
+	$$->setType($1->getType());
 	fprintf(logout, "\n%s\n\n", str.c_str());
 	delete $1;
 }
@@ -574,6 +646,10 @@ term :	unary_expression {
 		 $$ = new SymbolInfo();
 		 string str = $1->getName() + $2->getName() + $3->getName();
 		 $$->setName(str);
+
+		 if($1->getType() == "double" || $2->getType() == "double")	$$->setType("double");
+		 else $$->setType("int");
+
 		 fprintf(logout, "\n%s\n\n", str.c_str());
 		 delete $1;
 		 delete $2;
@@ -586,6 +662,8 @@ unary_expression : ADDOP unary_expression {
 	$$ = new SymbolInfo();
 	string str = $1->getName() + $2->getName();
 	$$->setName(str);
+	$$->setType($2->getType());
+
 	fprintf(logout, "\n%s\n\n", str.c_str());
 	delete $1;
 	delete $2;
@@ -595,6 +673,7 @@ unary_expression : ADDOP unary_expression {
 			 $$ = new SymbolInfo();
 		  	 string str = "!" + $2->getName();
 		  	 $$->setName(str);
+			 $$->setType("int");
 		  	 fprintf(logout, "\n%s\n\n", str.c_str());
 			 delete $2;
 		 }
@@ -603,6 +682,7 @@ unary_expression : ADDOP unary_expression {
 			 $$ = new SymbolInfo();
 		  	 string str = $1->getName();
 		  	 $$->setName(str);
+			 $$->setType($1->getType());
 		  	 fprintf(logout, "\n%s\n\n", str.c_str());
 			 delete $1;
 		 }
@@ -613,6 +693,7 @@ factor	: variable {
 	$$ = new SymbolInfo();
 	string str = $1->getName();
 	$$->setName(str);
+	$$->setType($1->getType());
 	fprintf(logout, "\n%s\n\n", str.c_str());
 	delete $1;
 }
@@ -621,9 +702,19 @@ factor	: variable {
 		$$ = new SymbolInfo();
 		string str = $1->getName() + "(" + $3->getName() + ")";
 		$$->setName(str);
+		SymbolInfo* symbol = table->lookUp($1->getName());
+		if(symbol){
+			if(symbol->parameterList[symbol->parameterList.size() -1] == "function") $$->setType(symbol->parameterList[0]);
+			else{
+				$$->setType("error");
+				fprintf(errorout, "Error at line %d : '%s' is not a function\n\n", line_count, $1->getName());
+			}
+		} else{
+			$$->setType("error");
+			fprintf(errorout, "Error at line %d : function '%s' not declared\n\n", line_count, $1->getName());
+		}
+
 		fprintf(logout, "\n%s\n\n", str.c_str());
-		
-		table->insert($1->getName(), "ID");
 
 		delete $1;
 		delete $3;
@@ -633,6 +724,7 @@ factor	: variable {
 		$$ = new SymbolInfo();
 		string str = "(" + $2->getName() + ")";
 		$$->setName(str);
+		$$->setType($2->getType());
 		fprintf(logout, "\n%s\n\n", str.c_str());
 		delete $2;
 	}
@@ -641,6 +733,7 @@ factor	: variable {
 		$$ = new SymbolInfo();
 		string str = $1->getName();
 		$$->setName(str);
+		$$->setType("int");
 		fprintf(logout, "\n%s\n\n", str.c_str());
 		delete $1;
 	}
@@ -649,6 +742,7 @@ factor	: variable {
 		$$ = new SymbolInfo();
 		string str = $1->getName();
 		$$->setName(str);
+		$$->setType("float");
 		fprintf(logout, "\n%s\n\n", str.c_str());
 		delete $1;
 	}
@@ -657,6 +751,7 @@ factor	: variable {
 		$$ = new SymbolInfo();
 		string str = $1->getName() + "++";
 		$$->setName(str);
+		$$->setType($1->getType());
 		fprintf(logout, "\n%s\n\n", str.c_str());
 		delete $1;
 	}
@@ -665,6 +760,7 @@ factor	: variable {
 		$$ = new SymbolInfo();
 		string str = $1->getName() + "--";
 		$$->setName(str);
+		$$->setType($1->getType());
 		fprintf(logout, "\n%s\n\n", str.c_str());
 		delete $1;
 	}
