@@ -145,23 +145,23 @@ bool ScopeTable::deleteSymbol(const string &name) {
 }
 
 void ScopeTable::print() {
-    cout << "ScopeTable # " << id << endl;
-    // fprintf(logout, "ScopeTable # %d\n", id);
+    // cout << "ScopeTable # " << id << endl;
+    fprintf(logout, "\nScopeTable # %d\n\n", id);
     for (int i = 0; i < totalBucket; i++) {
         if(symbolBucket[i] == nullptr) continue;
-        cout << i << " ---> ";
-        // fprintf(logout, "%d ---> ", i);
+        // cout << i << " ---> ";
+        fprintf(logout, "%d ---> ", i);
         SymbolInfo *current = symbolBucket[i];
         while (current != nullptr) {
-            cout << "< " << current->getName() << " : " << current->getType() << ">  ";
-            // fprintf(logout, "<%s : %s> ", current->getName().c_str(), current->getType().c_str());
+            // cout << "< " << current->getName() << " : " << current->getType() << ">  ";
+            fprintf(logout, "<%s : %s> ", current->getName().c_str(), current->getType().c_str());
             current = current->getNext();
         }
-        cout << endl;
-        // fprintf(logout, "\n");
+        // cout << endl;
+        fprintf(logout, "\n\n");
     }
-    cout << endl;
-    // fprintf(logout, "\n");
+    // cout << endl;
+    fprintf(logout, "\n");
 }
 
 int ScopeTable::hashFunction(string str) {

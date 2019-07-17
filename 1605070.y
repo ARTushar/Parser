@@ -1,9 +1,8 @@
 %{
 
-#include<iostream>
-#include<cstdlib>
-#include<string>
-#include<cmath>
+#include <iostream>
+#include <cstdlib>
+#include <string>
 #include "1605070_SymbolTable.h"
 
 // #define YYSTYPE SymbolInfo*
@@ -34,7 +33,7 @@ void yyerror(char *s)
 
 %token <info> ADDOP CONST_FLOAT CONST_INT ID LOGICOP MULOP RELOP
 
-%type <info> program unit var_declaration func_declaration func_definition type_specifier parameter_list compound_statement statements declaration_list statement expression_statement expression variable logic_expression rel_expression simple_expression term unary_expression factor argument_list arguments
+%type <info> program unit var_declaration func_declaration func_definition type_specifier parameter_list compound_statement statements declaration_list statement expression_statement expression variable logic_expression rel_expression simple_expression term unary_expression factor argument_list arguments function_first_part_1 function_first_part_2
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
@@ -43,6 +42,8 @@ void yyerror(char *s)
 
 start : program {
 	// fprintf(logout, "At line no: %d start : program\n", line_count);
+	fprintf(logout, "\t\t Symbol Table:\n\n");
+	table->printAll();
 	delete $1;
 }
 	;
@@ -94,48 +95,55 @@ unit : var_declaration {
 	 }
      ;
 
-func_declaration : type_specifier ID LPAREN parameter_list RPAREN SEMICOLON {
+func_declaration : function_first_part_1 SEMICOLON {
 	fprintf(logout, "At line no: %d func_declaration : type_specifier ID LPAREN parameter_list RPAREN SEMICOLON\n", line_count);
 	$$ = new SymbolInfo();
-	string str = $1->getName() + " " + $2->getName() + "(" + $4->getName() + ")" + ";\n";
+	string str = $1->getName() + ";\n";
 	$$->setName(str);
 	fprintf(logout, "\n%s\n\n", str.c_str());
 
-	SymbolInfo* symbol = new SymbolInfo($2->getName(), "function");
-	symbol->parameterList.push_back($1->getName());
-	symbol->parameterList.insert(symbol->parameterList.end(), $4->parameterList.begin(), $4->parameterList.end());
-
-	table->insert(symbol);
-
 	delete $1;
-	delete $2;
-	delete $4;
 }
-		| type_specifier ID LPAREN RPAREN SEMICOLON {
+		| function_first_part_2 SEMICOLON {
 			fprintf(logout, "At line no: %d func_declaration : type_specifier ID LPAREN RPAREN SEMICOLON\n", line_count);
 			$$ = new SymbolInfo();
-			string str = $1->getName() + " " + $2->getName() + "()" + ";\n";
+			string str = $1->getName() + ";\n";
 			$$->setName(str);
 			fprintf(logout, "\n%s\n\n", str.c_str());
 
-			SymbolInfo* symbol = new SymbolInfo($2->getName(), "function");
-			symbol->parameterList.push_back($1->getName());
-
-			table->insert(symbol);
-
 			delete $1;
-			delete $2;
 		}
 		;
 
-func_definition : type_specifier ID LPAREN parameter_list RPAREN compound_statement {
+func_definition : function_first_part_1 compound_statement {
 	fprintf(logout, "At line no: %d func_definition : type_specifier ID LPAREN parameter_list RPAREN compound_statement\n", line_count);
 	$$ = new SymbolInfo();
-	string str = $1->getName() + " " + $2->getName() + "(" + $4->getName() + ")" + $6->getName();
+	string str = $1->getName() + " " + $2->getName();
 	$$->setName(str);
 	fprintf(logout, "\n%s\n\n", str.c_str());
 
-	SymbolInfo* symbol = new SymbolInfo($2->getName(), "function");
+	delete $1;
+	delete $2;
+}
+		| function_first_part_2  compound_statement {
+			fprintf(logout, "At line no: %d func_definition : type_specifier ID LPAREN RPAREN compound_statement\n", line_count);
+			$$ = new SymbolInfo();
+			string str = $1->getName() + " " + $2->getName();
+			$$->setName(str);
+			fprintf(logout, "\n%s\n\n", str.c_str());
+
+			delete $1;
+			delete $2;
+		}
+ 		;
+
+function_first_part_1 : type_specifier ID LPAREN parameter_list RPAREN {
+
+	$$ = new SymbolInfo();
+	string str = $1->getName() + " " + $2->getName() + "(" + $4->getName() + ")";
+	$$->setName(str);
+
+	SymbolInfo* symbol = new SymbolInfo($2->getName(), "ID");
 	symbol->parameterList.push_back($1->getName());
 	symbol->parameterList.insert(symbol->parameterList.end(), $4->parameterList.begin(), $4->parameterList.end());
 
@@ -144,25 +152,24 @@ func_definition : type_specifier ID LPAREN parameter_list RPAREN compound_statem
 	delete $1;
 	delete $2;
 	delete $4;
-	delete $6;
 }
-		| type_specifier ID LPAREN RPAREN compound_statement {
-			fprintf(logout, "At line no: %d func_definition : type_specifier ID LPAREN RPAREN compound_statement\n", line_count);
-			$$ = new SymbolInfo();
-			string str = $1->getName() + " " + $2->getName() + "()" + $5->getName();
-			$$->setName(str);
-			fprintf(logout, "\n%s\n\n", str.c_str());
+			;
 
-			SymbolInfo* symbol = new SymbolInfo($2->getName(), "function");
-			symbol->parameterList.push_back($1->getName());
+function_first_part_2:  type_specifier ID LPAREN RPAREN {
 
-			table->insert(symbol);
+	$$ = new SymbolInfo();
+	string str = $1->getName() + " " + $2->getName() + "()";
+	$$->setName(str);
+	SymbolInfo* symbol = new SymbolInfo($2->getName(), "ID");
+	symbol->parameterList.push_back($1->getName());
 
-			delete $1;
-			delete $2;
-			delete $5;
-		}
- 		;
+	table->insert(symbol);
+
+	delete $1;
+	delete $2;
+
+}
+					;
 
 
 parameter_list  : parameter_list COMMA type_specifier ID {
@@ -216,6 +223,8 @@ compound_statement : LCURL statements RCURL {
 	string str = "{\n" + $2->getName() + "}\n";
 	$$->setName(str);
 	fprintf(logout, "\n%s\n\n", str.c_str());
+	table->printAll();
+	table->exitScope();
 	delete $2;
 }
  		    | LCURL RCURL {
@@ -224,6 +233,9 @@ compound_statement : LCURL statements RCURL {
 			 	 string str = "{\n}\n";
 			 	 $$->setName(str);
 			 	 fprintf(logout, "\n%s\n\n", str.c_str());
+
+				 table->printAll();
+				 table->exitScope();
 			 }
  		    ;
 
@@ -277,6 +289,9 @@ declaration_list : declaration_list COMMA ID {
 	string str = $1->getName() + "," + $3->getName();
 	$$->setName(str);
 	fprintf(logout, "\n%s\n\n", str.c_str());
+
+	table->insert($3->getName(), "ID");
+
 	delete $1;
 	delete $3;
 }
@@ -286,6 +301,9 @@ declaration_list : declaration_list COMMA ID {
 			   string str = $1->getName() + "," + $3->getName() + "[" + $5->getName() + "]";
 			   $$->setName(str);
 			   fprintf(logout, "\n%s\n\n", str.c_str());
+
+			   table->insert($3->getName(), "ID");
+
 			   delete $1;
 			   delete $3;
 			   delete $5;
@@ -296,6 +314,9 @@ declaration_list : declaration_list COMMA ID {
 			   string str = $1->getName();
 			   $$->setName(str);
 			   fprintf(logout, "\n%s\n\n", str.c_str());
+
+			   table->insert($1->getName(), "ID");
+
 			   delete $1;
 
 		   }
@@ -305,6 +326,11 @@ declaration_list : declaration_list COMMA ID {
 			   string str = $1->getName() + "[" + $3->getName() + "]";
 			   $$->setName(str);
 			   fprintf(logout, "\n%s\n\n", str.c_str());
+			   
+			   SymbolInfo *symbol = new SymbolInfo($1->getName(), "ID");
+			   symbol->parameterList.push_back($3->getName());
+			   table->insert(symbol);
+
 			   delete $1;
 			   delete $3;
 		   }
@@ -399,6 +425,9 @@ statement : var_declaration {
 		  string str = "println(" + $3->getName() + ") " +";\n ";
 		  $$->setName(str);
 		  fprintf(logout, "\n%s\n\n", str.c_str());
+		  
+		  table->insert($3->getName(), "ID");
+
 		  delete $3;
 	  }
 	  | RETURN expression SEMICOLON {
@@ -434,6 +463,9 @@ variable : ID {
 	string str = $1->getName();
 	$$->setName(str);
 	fprintf(logout, "\n%s\n\n", str.c_str());
+	
+	table->insert($1->getName(), "ID");
+
 	delete $1;
 }
 	 | ID LTHIRD expression RTHIRD {
@@ -442,6 +474,9 @@ variable : ID {
 		 string str = $1->getName() + "[" + $3->getName() + "]";
 		 $$->setName(str);
 		 fprintf(logout, "\n%s\n\n", str.c_str());
+		 
+		 table->insert($1->getName(), "ID");
+		 
 		 delete $1;
 		 delete $3;
 	 }
@@ -587,6 +622,9 @@ factor	: variable {
 		string str = $1->getName() + "(" + $3->getName() + ")";
 		$$->setName(str);
 		fprintf(logout, "\n%s\n\n", str.c_str());
+		
+		table->insert($1->getName(), "ID");
+
 		delete $1;
 		delete $3;
 	}
@@ -678,9 +716,12 @@ int main(int argc,char *argv[])
 		printf("Cannot Open Input File.\n");
 		exit(1);
 	}
-	
 	yyin=fp;
 	yyparse();
+	fprintf(logout, "Total lines: %d\n", line_count);
+    // fprintf(logout, "Total errors: %d\n", total_error);
+	fclose(yyin);
+	fclose(logout);
 	fclose(fp);
 
 	return 0;

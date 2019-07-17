@@ -23,6 +23,7 @@
     // extern YYSTYPE yylval;
     void yyerror(char *);
     SymbolInfo* symbol;
+    extern SymbolTable* table;
 
 
     void strupr(char *str);
@@ -222,6 +223,7 @@ DIGIT [0-9]+
 \{ {
     // fprintf(tokenout, "<LCURL, {> ");
     // print_log("LCURL", yytext);
+    table->enterScope();
     return LCURL;
 }
 

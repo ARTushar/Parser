@@ -19,11 +19,13 @@ void SymbolTable::enterScope() {
     newScope->setParentScope(currentScopeTable);
     currentScopeTable = newScope;
     // cout << "New ScopeTable with id " << newScope->getId() << " created" << endl << endl;
+    fprintf(logout, "New ScopeTable with id %d created\n\n", newScope->getId());
 }
 
 void SymbolTable::exitScope() {
     ScopeTable* parent = currentScopeTable->getParentScope();
     // cout << "ScopeTable with id " << currentScopeTable->getId() << " removed" << endl << endl;
+    fprintf(logout, "ScopeTable with id %d removed\n\n", currentScopeTable->getId());
     delete currentScopeTable;
     currentScopeTable = parent;
 }
