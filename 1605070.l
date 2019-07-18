@@ -223,7 +223,6 @@ DIGIT [0-9]+
 \{ {
     // fprintf(tokenout, "<LCURL, {> ");
     // print_log("LCURL", yytext);
-    table->enterScope();
     return LCURL;
 }
 

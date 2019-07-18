@@ -16,8 +16,12 @@ extern FILE *yyin;
 extern int line_count;
 FILE *logout  = fopen("1605070_log.txt","w");
 FILE *errorout = fopen("1605070_error.txt", "w");
+int serror_count = 0;
 
 SymbolTable *table = new SymbolTable(30, logout);
+vector<pair<string, string>> parameters;
+
+bool matchFunction(vector<string> &, vector<string> &);
 
 
 void yyerror(char *s)
@@ -35,7 +39,7 @@ void yyerror(char *s)
 
 %token <info> ADDOP CONST_FLOAT CONST_INT ID LOGICOP MULOP RELOP
 
-%type <info> program unit var_declaration func_declaration func_definition type_specifier parameter_list compound_statement statements declaration_list statement expression_statement expression variable logic_expression rel_expression simple_expression term unary_expression factor argument_list arguments function_first_part_1 function_first_part_2
+%type <info> program unit var_declaration func_declaration func_definition type_specifier parameter_list compound_statement statements declaration_list statement expression_statement expression variable logic_expression rel_expression simple_expression term unary_expression factor argument_list arguments function_first_part_1 function_first_part_2 left_curl
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
@@ -145,12 +149,34 @@ function_first_part_1 : type_specifier ID LPAREN parameter_list RPAREN {
 	string str = $1->getName() + " " + $2->getName() + "(" + $4->getName() + ")";
 	$$->setName(str);
 
-	SymbolInfo* symbol = new SymbolInfo($2->getName(), "ID");
-	symbol->parameterList.push_back($1->getName());
-	symbol->parameterList.insert(symbol->parameterList.end(), $4->parameterList.begin(), $4->parameterList.end());
-	symbol->parameterList.push_back("function");
+	SymbolInfo* foundSymbol = table->lookUp($2->getName());
 
-	table->insert(symbol);
+	if(foundSymbol){
+		vector<string> list = foundSymbol->parameterList;
+		vector<string> para;
+		para.push_back($1->getName());
+		para.insert(para.end(), $4->parameterList.begin(), $4->parameterList.end());
+		if(list[list.size() - 1] == "function"){
+			if(!matchFunction(list, para)){
+				fprintf(errorout, "Erorr at line %d : conflicting types for  '%s'\n\n", line_count, $2->getName().c_str());
+				serror_count++;
+				$$->setName("error");
+			}
+		}
+		else {
+			fprintf(errorout, "Erorr at line %d : '%s' redeclared as different kind of symbol\n\n", line_count, $2->getName().c_str());
+			serror_count++;
+			$$->setName("error");
+		}
+	} else {
+
+		SymbolInfo* symbol = new SymbolInfo($2->getName(), "ID");
+		symbol->parameterList.push_back($1->getName());
+		symbol->parameterList.insert(symbol->parameterList.end(), $4->parameterList.begin(), $4->parameterList.end());
+		symbol->parameterList.push_back("function");
+
+		table->insert(symbol);
+	}
 
 	delete $1;
 	delete $2;
@@ -163,11 +189,31 @@ function_first_part_2:  type_specifier ID LPAREN RPAREN {
 	$$ = new SymbolInfo();
 	string str = $1->getName() + " " + $2->getName() + "()";
 	$$->setName(str);
-	SymbolInfo* symbol = new SymbolInfo($2->getName(), "ID");
-	symbol->parameterList.push_back($1->getName());
-	symbol->parameterList.push_back("function");
 
-	table->insert(symbol);
+	SymbolInfo* foundSymbol = table->lookUp($2->getName());
+
+	if(foundSymbol){
+		vector<string> list = foundSymbol->parameterList;
+		if(list[list.size() - 1] == "function"){
+			if(list.size() != 2){
+				fprintf(errorout, "Erorr at line %d : conflicting types for  '%s'\n\n", line_count, $2->getName().c_str());
+				$$->setName("error");
+				serror_count++;
+			}
+		}
+		else {
+			fprintf(errorout, "Erorr at line %d : '%s' redeclared as different kind of symbol\n\n", line_count, $2->getName().c_str());
+			$$->setName("error");
+			serror_count++;
+		}
+
+	} else {
+		SymbolInfo* symbol = new SymbolInfo($2->getName(), "ID");
+		symbol->parameterList.push_back($1->getName());
+		symbol->parameterList.push_back("function");
+
+		table->insert(symbol);
+	}
 
 	delete $1;
 	delete $2;
@@ -185,9 +231,7 @@ parameter_list  : parameter_list COMMA type_specifier ID {
 	$$->parameterList.push_back($3->getName());
 	fprintf(logout, "\n%s\n\n", str.c_str());
 
-	SymbolInfo* symbol = new SymbolInfo($4->getName(), "ID");
-	symbol->parameterList.push_back($3->getName());
-	symbol->parameterList.push_back("normal");
+	parameters.push_back(make_pair($4->getName(), $3->getName()));
 
 	delete $1;
 	delete $3;
@@ -212,9 +256,7 @@ parameter_list  : parameter_list COMMA type_specifier ID {
 			 $$->parameterList.push_back($1->getName());
 			 fprintf(logout, "\n%s\n\n", str.c_str());
 
-			 SymbolInfo* symbol = new SymbolInfo($2->getName(), "ID");
-			 symbol->parameterList.push_back($1->getName());
-			 symbol->parameterList.push_back("normal");
+			 parameters.push_back(make_pair($2->getName(), $1->getName()));
 
 			 delete $1;
 			 delete $2;
@@ -231,7 +273,7 @@ parameter_list  : parameter_list COMMA type_specifier ID {
  		;
 
 
-compound_statement : LCURL statements RCURL {
+compound_statement : left_curl statements RCURL {
 	fprintf(logout, "At line no: %d compound_statement : LCURL statements RCURL\n", line_count);
 	$$ = new SymbolInfo();
 	string str = "{\n" + $2->getName() + "}\n";
@@ -241,7 +283,7 @@ compound_statement : LCURL statements RCURL {
 	table->exitScope();
 	delete $2;
 }
- 		    | LCURL RCURL {
+ 		    | left_curl RCURL {
 				 fprintf(logout, "At line no: %d compound_statement : LCURL RCURL\n", line_count);
 				 $$ = new SymbolInfo();
 			 	 string str = "{\n}\n";
@@ -252,6 +294,21 @@ compound_statement : LCURL statements RCURL {
 				 table->exitScope();
 			 }
  		    ;
+
+left_curl : LCURL {
+	table->enterScope();
+
+	for(int i = 0; i < parameters.size(); i++){
+		SymbolInfo* symbol = new SymbolInfo(parameters[i].first, "ID");
+		symbol->parameterList.push_back(parameters[i].second);
+		symbol->parameterList.push_back("normal");
+		table->insert(symbol);
+	}
+	if(parameters.size() != 0){
+		parameters.clear();
+	}
+}
+		;
 
 var_declaration : type_specifier declaration_list SEMICOLON
 	{
@@ -269,7 +326,8 @@ var_declaration : type_specifier declaration_list SEMICOLON
 			if(found == -1) {
 				bool got = table->lookUpCurrent(temp);
 				if(got) {
-					fprintf(errorout, "Error at line %d : redeclaration of '%s'\n\n", line_count, temp);
+					fprintf(errorout, "Error at line %d : redeclaration of '%s'\n\n", line_count, temp.c_str());
+					serror_count++;
 				} else {
 					SymbolInfo* symbol = new SymbolInfo(temp, "ID");
 					symbol->parameterList.push_back($1->getName());
@@ -283,7 +341,8 @@ var_declaration : type_specifier declaration_list SEMICOLON
 				string content = temp.substr(0,found);
 				bool got = table->lookUpCurrent(content);
 				if(got) {
-					fprintf(errorout, "Error at line %d : redeclaration of '%s'\n\n", line_count, content);
+					fprintf(errorout, "Error at line %d : redeclaration of '%s'\n\n", line_count, content.c_str());
+					serror_count++;
 				} else {
 					SymbolInfo* symbol = new SymbolInfo(content, "ID");
 					symbol->parameterList.push_back($1->getName());
@@ -506,10 +565,12 @@ variable : ID {
 		else{
 			$$->setType("error");
 			fprintf(errorout, "Error at line %d : lvalue required\n\n", line_count);
+			serror_count++;
 		}
 	} else{
 		$$->setType("error");
-		fprintf(errorout, "Error at line %d : '%s' undeclared\n\n", line_count, $1->getName());
+		serror_count++;
+		fprintf(errorout, "Error at line %d : '%s' undeclared\n\n", line_count, $1->getName().c_str());
 	}
 	fprintf(logout, "\n%s\n\n", str.c_str());
 	
@@ -524,15 +585,30 @@ variable : ID {
 
 		 SymbolInfo* symbol = table->lookUp($1->getName());
 		 if(symbol){
-			 if(symbol->parameterList[symbol->parameterList.size()-1] == "array") $$->setType(symbol->parameterList[0]);
+			 if(symbol->parameterList[symbol->parameterList.size()-1] == "array") {
+				 $$->setType(symbol->parameterList[0]);
+				 string size = symbol->parameterList[1];
+				 if($3->getName() >= size){
+					 fprintf(errorout, "Error at line %d : Array index out of bound (array size '%s', used index '%s')\n\n", line_count, size.c_str(), $3->getName().c_str());
+					 serror_count++;
+				 }
+			 }
 			 else{
 			 	 $$->setType("error");
 				 fprintf(errorout, "Error at line %d : subscripted value is not array\n\n", line_count);
+				 serror_count++;
 			 }
 		 }   else{
 				 $$->setType("error");
 				 fprintf(errorout, "Error at line %d : undeclared\n\n", line_count);
-		}
+				 serror_count++;
+		 }
+
+		 if($3->getType() != "int") {
+			 $$->setType("error");
+			 fprintf(errorout, "Error at line %d : array subscript is not an integer (have '%s')\n\n", line_count, $3->getType().c_str());
+			 serror_count++;
+		 }
 
 		 delete $1;
 		 delete $3;
@@ -544,6 +620,7 @@ expression : logic_expression {
 	$$ = new SymbolInfo();
 	string str = $1->getName();
 	$$->setName(str);
+	$$->setType($1->getType());
 	fprintf(logout, "\n%s\n\n", str.c_str());
 	delete $1;
 }
@@ -552,9 +629,17 @@ expression : logic_expression {
 		   $$ = new SymbolInfo();
 		   string str = $1->getName() + " = " + $3->getName();
 		   $$->setName(str);
+		   $$->setType($1->getType());
 
 		   if($1->getType() != $3->getType()) {
-			   fprintf(errorout, "Error at line %d : operands types mismatch\n\n", line_count);
+			   if($3->getType() == "void") {
+					fprintf(errorout, "Error at line %d : 'void' type cannot be assigned\n\n", line_count);
+					serror_count++;
+			   } else if($3->getType() != "error" && $1->getType() != "error") {
+			   		fprintf(errorout, "Error at line %d : operands types mismatch (have '%s' and '%s' )\n\n", line_count, $1->getType().c_str(), $3->getType().c_str());
+					serror_count++;
+			   }
+			   $$->setType("error");
 		   }
 
 		   fprintf(logout, "\n%s\n\n", str.c_str());
@@ -650,6 +735,12 @@ term :	unary_expression {
 		 if($1->getType() == "double" || $2->getType() == "double")	$$->setType("double");
 		 else $$->setType("int");
 
+		 if($2->getName() == "%" && $1->getType() == "double" || $2->getType() == "double") {
+			$$->setType("error");
+			fprintf(errorout, "Error at line %d : invalid operands to binary % (have '%s' and '%s')\n\n", line_count, $1->getType().c_str(), $3->getType().c_str());
+			serror_count++;
+		 }
+
 		 fprintf(logout, "\n%s\n\n", str.c_str());
 		 delete $1;
 		 delete $2;
@@ -704,14 +795,18 @@ factor	: variable {
 		$$->setName(str);
 		SymbolInfo* symbol = table->lookUp($1->getName());
 		if(symbol){
-			if(symbol->parameterList[symbol->parameterList.size() -1] == "function") $$->setType(symbol->parameterList[0]);
+			if(symbol->parameterList[symbol->parameterList.size() -1] == "function"){
+				$$->setType(symbol->parameterList[0]);
+			} 
 			else{
 				$$->setType("error");
-				fprintf(errorout, "Error at line %d : '%s' is not a function\n\n", line_count, $1->getName());
+				fprintf(errorout, "Error at line %d : '%s' is not a function\n\n", line_count, $1->getName().c_str());
+				serror_count++;
 			}
 		} else{
 			$$->setType("error");
-			fprintf(errorout, "Error at line %d : function '%s' not declared\n\n", line_count, $1->getName());
+			fprintf(errorout, "Error at line %d : function '%s' not declared\n\n", line_count, $1->getName().c_str());
+			serror_count++;
 		}
 
 		fprintf(logout, "\n%s\n\n", str.c_str());
@@ -814,8 +909,9 @@ int main(int argc,char *argv[])
 	}
 	yyin=fp;
 	yyparse();
-	fprintf(logout, "Total lines: %d\n", line_count);
-    // fprintf(logout, "Total errors: %d\n", total_error);
+	fprintf(logout, "Total lines: %d\n\n", line_count);
+	fprintf(logout, "Total errors: %d\n", serror_count);
+    fprintf(errorout, "Total errors: %d\n", serror_count);
 	fclose(yyin);
 	fclose(logout);
 	fclose(fp);
@@ -823,3 +919,12 @@ int main(int argc,char *argv[])
 	return 0;
 }
 
+bool matchFunction(vector<string> &a, vector<string> &b) {
+	if(a.size() == b.size()) {
+		for(int i = 0; i < a.size(); i++) {
+			if(a[i] != b[i]) return false;
+		}
+	}
+	else return false;
+	return true;
+}
