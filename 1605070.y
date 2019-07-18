@@ -27,6 +27,7 @@ bool matchFunction(vector<string> &, vector<string> &);
 void yyerror(char *s)
 {
 	//write your code
+	fprintf(logout, "%s at line %d\n\n", s, line_count);
 }
 
 %}
@@ -43,6 +44,10 @@ void yyerror(char *s)
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
+
+%nonassoc LOWER_THAN_SEMICOLON
+%nonassoc SEMICOLON
+
 
 %%
 
@@ -310,8 +315,7 @@ left_curl : LCURL {
 }
 		;
 
-var_declaration : type_specifier declaration_list SEMICOLON
-	{
+var_declaration : type_specifier declaration_list SEMICOLON {
 		fprintf(logout, "At line no: %d var_declaration : type_specifier declaration_list SEMICOLON\n", line_count);
 		$$ = new SymbolInfo();
 		string str = $1->getName() + " " + $2->getName() + ";\n";
@@ -356,6 +360,55 @@ var_declaration : type_specifier declaration_list SEMICOLON
 		delete $1;
 		delete $2;
 	}
+	| type_specifier declaration_list error {
+		fprintf(logout, "';' not provided after variable declaration\n\n");
+
+		fprintf(logout, "At line no: %d var_declaration : type_specifier declaration_list SEMICOLON\n", line_count);
+		$$ = new SymbolInfo();
+		string str = $1->getName() + " " + $2->getName() + "; // corrected\n";
+		$$->setName(str);
+		fprintf(logout, "\n%s\n\n", str.c_str());
+
+		stringstream tokenize($2->getName());
+		string temp;
+
+		while(getline(tokenize, temp, ',')){
+			int found = temp.find("[");
+			if(found == -1) {
+				bool got = table->lookUpCurrent(temp);
+				if(got) {
+					fprintf(errorout, "Error at line %d : redeclaration of '%s'\n\n", line_count, temp.c_str());
+					serror_count++;
+				} else {
+					SymbolInfo* symbol = new SymbolInfo(temp, "ID");
+					symbol->parameterList.push_back($1->getName());
+					symbol->parameterList.push_back("normal");
+					table->insert(symbol);
+				}
+			}
+			else{
+				int found2 = temp.find("]", found+1);
+				string size = temp.substr(found+1, found2-found-1);
+				string content = temp.substr(0,found);
+				bool got = table->lookUpCurrent(content);
+				if(got) {
+					fprintf(errorout, "Error at line %d : redeclaration of '%s'\n\n", line_count, content.c_str());
+					serror_count++;
+				} else {
+					SymbolInfo* symbol = new SymbolInfo(content, "ID");
+					symbol->parameterList.push_back($1->getName());
+					symbol->parameterList.push_back(size);
+					symbol->parameterList.push_back("array");
+					table->insert(symbol);
+				}
+			}
+		}
+
+		delete $1;
+		delete $2;
+		
+	}
+
  		 ;
 
 type_specifier : INT {
@@ -381,12 +434,6 @@ type_specifier : INT {
 			$$ = new SymbolInfo();
 			$$->setName("char");
 			fprintf(logout, "\nchar\n\n");
-		}
-		| DOUBLE {
-			fprintf(logout, "At line no: %d type_specifier : DOUBLE\n", line_count);
-			$$ = new SymbolInfo();
-			$$->setName("double");
-			fprintf(logout, "\ndouble\n\n");
 		}
  		;
 
@@ -417,7 +464,6 @@ declaration_list : declaration_list COMMA ID {
 			   string str = $1->getName();
 			   $$->setName(str);
 			   fprintf(logout, "\n%s\n\n", str.c_str());
-
 			   delete $1;
 
 		   }
@@ -444,7 +490,7 @@ statements : statement {
 	   | statements statement {
 		   fprintf(logout, "At line no: %d statements : statements statement\n", line_count);
 		   $$ = new SymbolInfo();
-		   string str = $1->getName() + $2->getName();
+		   string str = $1->getName()+ $2->getName();
 		   $$->setName(str);
 		   fprintf(logout, "\n%s\n\n", str.c_str());
 		   delete $1;
@@ -519,7 +565,17 @@ statement : var_declaration {
 	  | PRINTLN LPAREN ID RPAREN SEMICOLON {
 		  fprintf(logout, "At line no: %d statement : PRINTLN LPAREN ID RPAREN SEMICOLON\n", line_count);
 		  $$ = new SymbolInfo();
-		  string str = "println(" + $3->getName() + ") " +";\n ";
+		  string str = "println(" + $3->getName() + ")" +";\n";
+		  $$->setName(str);
+		  fprintf(logout, "\n%s\n\n", str.c_str());
+		  
+		  delete $3;
+	  }
+	  | PRINTLN LPAREN ID RPAREN error {
+		  fprintf(logout, "';' not provided\n\n");
+		  fprintf(logout, "At line no: %d statement : PRINTLN LPAREN ID RPAREN SEMICOLON\n", line_count);
+		  $$ = new SymbolInfo();
+		  string str = "println(" + $3->getName() + ")" +"; // corrected\n";
 		  $$->setName(str);
 		  fprintf(logout, "\n%s\n\n", str.c_str());
 		  
@@ -533,19 +589,28 @@ statement : var_declaration {
 		  fprintf(logout, "\n%s\n\n", str.c_str());
 		  delete $2;
 	  }
+	  | RETURN expression error {
+		  fprintf(logout, "';' not provided\n\n");
+		  fprintf(logout, "At line no: %d statement : RETURN expression SEMICOLON\n", line_count);
+		  $$ = new SymbolInfo();
+		  string str = "return " + $2->getName() + "; // corrected\n";
+		  $$->setName(str);
+		  fprintf(logout, "\n%s\n\n", str.c_str());
+		  delete $2;
+	  }
 	  ;
 
 expression_statement : SEMICOLON {
 	fprintf(logout, "At line no: %d expression_statement : SEMICOLON\n", line_count);
 	$$ = new SymbolInfo();
-	string str = "; ";
+	string str = ";\n";
 	$$->setName(str);
 	fprintf(logout, "\n%s\n\n", str.c_str());
 }
 			| expression SEMICOLON {
 				fprintf(logout, "At line no: %d expression_statement : expression SEMICOLON\n", line_count);
 				$$ = new SymbolInfo();
-		  		string str = $1->getName() + "; ";
+		  		string str = $1->getName() + ";";
 		  		$$->setName(str);
 		  		fprintf(logout, "\n%s\n\n", str.c_str());
 				delete $1;
@@ -582,33 +647,33 @@ variable : ID {
 		 string str = $1->getName() + "[" + $3->getName() + "]";
 		 $$->setName(str);
 		 fprintf(logout, "\n%s\n\n", str.c_str());
-
-		 SymbolInfo* symbol = table->lookUp($1->getName());
-		 if(symbol){
-			 if(symbol->parameterList[symbol->parameterList.size()-1] == "array") {
-				 $$->setType(symbol->parameterList[0]);
-				 string size = symbol->parameterList[1];
-				 if($3->getName() >= size){
-					 fprintf(errorout, "Error at line %d : Array index out of bound (array size '%s', used index '%s')\n\n", line_count, size.c_str(), $3->getName().c_str());
-					 serror_count++;
-				 }
-			 }
-			 else{
-			 	 $$->setType("error");
-				 fprintf(errorout, "Error at line %d : subscripted value is not array\n\n", line_count);
-				 serror_count++;
-			 }
-		 }   else{
-				 $$->setType("error");
-				 fprintf(errorout, "Error at line %d : undeclared\n\n", line_count);
-				 serror_count++;
-		 }
-
 		 if($3->getType() != "int") {
 			 $$->setType("error");
 			 fprintf(errorout, "Error at line %d : array subscript is not an integer (have '%s')\n\n", line_count, $3->getType().c_str());
 			 serror_count++;
+		 } else {
+			SymbolInfo* symbol = table->lookUp($1->getName());
+			if(symbol){
+				if(symbol->parameterList[symbol->parameterList.size()-1] == "array") {
+					$$->setType(symbol->parameterList[0]);
+					string size = symbol->parameterList[1];
+					if($3->getName() >= size){
+						fprintf(errorout, "Error at line %d : Array index out of bound (array size '%s', used index '%s')\n\n", line_count, size.c_str(), $3->getName().c_str());
+						serror_count++;
+					}
+				}
+				else{
+					$$->setType("error");
+					fprintf(errorout, "Error at line %d : subscripted value is not array\n\n", line_count);
+					serror_count++;
+				}
+			}   else{
+					$$->setType("error");
+					fprintf(errorout, "Error at line %d : undeclared\n\n", line_count);
+					serror_count++;
+			}
 		 }
+
 
 		 delete $1;
 		 delete $3;
@@ -707,7 +772,7 @@ simple_expression : term {
 		  	  string str = $1->getName() + " " + $2->getName() + " " + $3->getName();
 		  	  $$->setName(str);
 
-			  if($1->getType() == "double" || $2->getType() == "double")	$$->setType("double");
+			  if($1->getType() == "float" || $2->getType() == "float")	$$->setType("float");
 			  else $$->setType("int");
 
 		  	  fprintf(logout, "\n%s\n\n", str.c_str());
@@ -732,10 +797,10 @@ term :	unary_expression {
 		 string str = $1->getName() + $2->getName() + $3->getName();
 		 $$->setName(str);
 
-		 if($1->getType() == "double" || $2->getType() == "double")	$$->setType("double");
+		 if($1->getType() == "float" || $2->getType() == "float")	$$->setType("float");
 		 else $$->setType("int");
 
-		 if($2->getName() == "%" && $1->getType() == "double" || $2->getType() == "double") {
+		 if($2->getName() == "%" && ($1->getType() == "float" || $3->getType() == "float")) {
 			$$->setType("error");
 			fprintf(errorout, "Error at line %d : invalid operands to binary % (have '%s' and '%s')\n\n", line_count, $1->getType().c_str(), $3->getType().c_str());
 			serror_count++;
