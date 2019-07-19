@@ -6,8 +6,6 @@
 #include <sstream>
 #include "1605070_SymbolTable.h"
 
-// #define YYSTYPE SymbolInfo*
-
 using namespace std;
 
 int yyparse(void);
@@ -20,7 +18,8 @@ int serror_count = 0;
 
 SymbolTable *table = new SymbolTable(30, logout);
 vector<pair<string, string>> parameters;
-
+bool parameterSaved = false;
+string functionReturnType = "";
 bool matchFunction(vector<string> &, vector<string> &);
 
 
@@ -44,10 +43,6 @@ void yyerror(char *s)
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
-
-%nonassoc LOWER_THAN_SEMICOLON
-%nonassoc SEMICOLON
-
 
 %%
 
@@ -107,6 +102,10 @@ unit : var_declaration {
      ;
 
 func_declaration : function_first_part_1 SEMICOLON {
+	if(parameterSaved){
+		parameters.clear();
+		parameterSaved = false;
+	}
 	fprintf(logout, "At line no: %d func_declaration : type_specifier ID LPAREN parameter_list RPAREN SEMICOLON\n", line_count);
 	$$ = new SymbolInfo();
 	string str = $1->getName() + ";\n";
@@ -153,6 +152,7 @@ function_first_part_1 : type_specifier ID LPAREN parameter_list RPAREN {
 	$$ = new SymbolInfo();
 	string str = $1->getName() + " " + $2->getName() + "(" + $4->getName() + ")";
 	$$->setName(str);
+	parameterSaved = true;
 
 	SymbolInfo* foundSymbol = table->lookUp($2->getName());
 
@@ -161,12 +161,13 @@ function_first_part_1 : type_specifier ID LPAREN parameter_list RPAREN {
 		vector<string> para;
 		para.push_back($1->getName());
 		para.insert(para.end(), $4->parameterList.begin(), $4->parameterList.end());
+		para.push_back("function");
 		if(list[list.size() - 1] == "function"){
 			if(!matchFunction(list, para)){
 				fprintf(errorout, "Erorr at line %d : conflicting types for  '%s'\n\n", line_count, $2->getName().c_str());
 				serror_count++;
 				$$->setName("error");
-			}
+			} else functionReturnType = $1->getName();
 		}
 		else {
 			fprintf(errorout, "Erorr at line %d : '%s' redeclared as different kind of symbol\n\n", line_count, $2->getName().c_str());
@@ -179,7 +180,7 @@ function_first_part_1 : type_specifier ID LPAREN parameter_list RPAREN {
 		symbol->parameterList.push_back($1->getName());
 		symbol->parameterList.insert(symbol->parameterList.end(), $4->parameterList.begin(), $4->parameterList.end());
 		symbol->parameterList.push_back("function");
-
+		functionReturnType = $1->getName();
 		table->insert(symbol);
 	}
 
@@ -204,7 +205,7 @@ function_first_part_2:  type_specifier ID LPAREN RPAREN {
 				fprintf(errorout, "Erorr at line %d : conflicting types for  '%s'\n\n", line_count, $2->getName().c_str());
 				$$->setName("error");
 				serror_count++;
-			}
+			} else functionReturnType = $1->getName();
 		}
 		else {
 			fprintf(errorout, "Erorr at line %d : '%s' redeclared as different kind of symbol\n\n", line_count, $2->getName().c_str());
@@ -216,6 +217,7 @@ function_first_part_2:  type_specifier ID LPAREN RPAREN {
 		SymbolInfo* symbol = new SymbolInfo($2->getName(), "ID");
 		symbol->parameterList.push_back($1->getName());
 		symbol->parameterList.push_back("function");
+		functionReturnType = $1->getName();
 
 		table->insert(symbol);
 	}
@@ -319,40 +321,46 @@ var_declaration : type_specifier declaration_list SEMICOLON {
 		fprintf(logout, "At line no: %d var_declaration : type_specifier declaration_list SEMICOLON\n", line_count);
 		$$ = new SymbolInfo();
 		string str = $1->getName() + " " + $2->getName() + ";\n";
-		$$->setName(str);
-		fprintf(logout, "\n%s\n\n", str.c_str());
+		if($1->getName() == "void") {
+			$$->setName("error");
+			fprintf(errorout, "Error at line %d : variable declared void\n\n", line_count);
+			serror_count++;
+		} else {
+			$$->setName(str);
+			fprintf(logout, "\n%s\n\n", str.c_str());
 
-		stringstream tokenize($2->getName());
-		string temp;
+			stringstream tokenize($2->getName());
+			string temp;
 
-		while(getline(tokenize, temp, ',')){
-			int found = temp.find("[");
-			if(found == -1) {
-				bool got = table->lookUpCurrent(temp);
-				if(got) {
-					fprintf(errorout, "Error at line %d : redeclaration of '%s'\n\n", line_count, temp.c_str());
-					serror_count++;
-				} else {
-					SymbolInfo* symbol = new SymbolInfo(temp, "ID");
-					symbol->parameterList.push_back($1->getName());
-					symbol->parameterList.push_back("normal");
-					table->insert(symbol);
+			while(getline(tokenize, temp, ',')){
+				int found = temp.find("[");
+				if(found == -1) {
+					SymbolInfo* got = table->lookUpCurrent(temp);
+					if(got) {
+						fprintf(errorout, "Error at line %d : redeclaration of '%s'\n\n", line_count, temp.c_str());
+						serror_count++;
+					} else {
+						SymbolInfo* symbol = new SymbolInfo(temp, "ID");
+						symbol->parameterList.push_back($1->getName());
+						symbol->parameterList.push_back("normal");
+						table->insert(symbol);
+					}
 				}
-			}
-			else{
-				int found2 = temp.find("]", found+1);
-				string size = temp.substr(found+1, found2-found-1);
-				string content = temp.substr(0,found);
-				bool got = table->lookUpCurrent(content);
-				if(got) {
-					fprintf(errorout, "Error at line %d : redeclaration of '%s'\n\n", line_count, content.c_str());
-					serror_count++;
-				} else {
-					SymbolInfo* symbol = new SymbolInfo(content, "ID");
-					symbol->parameterList.push_back($1->getName());
-					symbol->parameterList.push_back(size);
-					symbol->parameterList.push_back("array");
-					table->insert(symbol);
+				else{
+					int found2 = temp.find("]", found+1);
+					string size = temp.substr(found+1, found2-found-1);
+					string content = temp.substr(0,found);
+					bool got = table->lookUpCurrent(content);
+					if(got) {
+						fprintf(errorout, "Error at line %d : redeclaration of '%s'\n\n", line_count, content.c_str());
+						serror_count++;
+					} else {
+						SymbolInfo* symbol = new SymbolInfo(content, "ID");
+						symbol->parameterList.push_back($1->getName());
+						symbol->parameterList.push_back(size);
+						symbol->parameterList.push_back("array");
+						table->insert(symbol);
+					}
 				}
 			}
 		}
@@ -585,6 +593,9 @@ statement : var_declaration {
 		  fprintf(logout, "At line no: %d statement : RETURN expression SEMICOLON\n", line_count);
 		  $$ = new SymbolInfo();
 		  string str = "return " + $2->getName() + ";\n";
+		  if(functionReturnType != $2->getType() && $2->getType() != "error"){
+			  fprintf(errorout, "Error at line %d : function return type not matched(have '%s' and '%s')\n\n", line_count, functionReturnType.c_str(), $2->getType().c_str());
+		  }
 		  $$->setName(str);
 		  fprintf(logout, "\n%s\n\n", str.c_str());
 		  delete $2;
@@ -603,7 +614,7 @@ statement : var_declaration {
 expression_statement : SEMICOLON {
 	fprintf(logout, "At line no: %d expression_statement : SEMICOLON\n", line_count);
 	$$ = new SymbolInfo();
-	string str = ";\n";
+	string str = ";";
 	$$->setName(str);
 	fprintf(logout, "\n%s\n\n", str.c_str());
 }
@@ -657,7 +668,7 @@ variable : ID {
 				if(symbol->parameterList[symbol->parameterList.size()-1] == "array") {
 					$$->setType(symbol->parameterList[0]);
 					string size = symbol->parameterList[1];
-					if($3->getName() >= size){
+					if(stoi($3->getName()) >= stoi(size)){
 						fprintf(errorout, "Error at line %d : Array index out of bound (array size '%s', used index '%s')\n\n", line_count, size.c_str(), $3->getName().c_str());
 						serror_count++;
 					}
@@ -797,7 +808,7 @@ term :	unary_expression {
 		 string str = $1->getName() + $2->getName() + $3->getName();
 		 $$->setName(str);
 
-		 if($1->getType() == "float" || $2->getType() == "float")	$$->setType("float");
+		 if($1->getType() == "float" || $3->getType() == "float")	$$->setType("float");
 		 else $$->setType("int");
 
 		 if($2->getName() == "%" && ($1->getType() == "float" || $3->getType() == "float")) {
@@ -861,7 +872,15 @@ factor	: variable {
 		SymbolInfo* symbol = table->lookUp($1->getName());
 		if(symbol){
 			if(symbol->parameterList[symbol->parameterList.size() -1] == "function"){
-				$$->setType(symbol->parameterList[0]);
+				bool matched = true;
+				for(int i = 0; i < $3->parameterList.size(); i++){
+					if($3->parameterList[i] != symbol->parameterList[i+1]) matched = false;
+				}
+				if(matched == false) {
+					fprintf(errorout , "Error at line %d : function arguments types not matched\n\n", line_count);
+					$$->setType("error");
+					serror_count++;
+				} else $$->setType(symbol->parameterList[0]);
 			} 
 			else{
 				$$->setType("error");
@@ -931,6 +950,7 @@ argument_list : arguments {
 	$$ = new SymbolInfo();
 	string str = $1->getName();
 	$$->setName(str);
+	$$->parameterList.insert($$->parameterList.end(), $1->parameterList.begin(), $1->parameterList.end());
 	fprintf(logout, "\n%s\n\n", str.c_str());
 	delete $1;
 }
@@ -948,6 +968,8 @@ arguments : arguments COMMA logic_expression {
 	$$ = new SymbolInfo();
 	string str = $1->getName() + ", " + $3->getName();
 	$$->setName(str);
+	$$->parameterList.insert($$->parameterList.end(), $1->parameterList.begin(), $1->parameterList.end());
+	$$->parameterList.push_back($3->getType());
 	fprintf(logout, "\n%s\n\n", str.c_str());
 	delete $1;
 	delete $3;
@@ -957,6 +979,7 @@ arguments : arguments COMMA logic_expression {
 			  $$ = new SymbolInfo();
 			  string str = $1->getName();
 			  $$->setName(str);
+			  $$->parameterList.push_back($1->getType());
 			  fprintf(logout, "\n%s\n\n", str.c_str());
 			  delete $1;
 		  }

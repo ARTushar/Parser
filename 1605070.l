@@ -12,15 +12,12 @@
 
     int line_count = 1;
     int total_error = 0;
-    // FILE *logout  = fopen("log.txt","w");
-    // FILE *tokenout = fopen("token.txt","w");
     extern "C" int yylex();
 
     string current_comment = "";
     string current_str = "";
     int comment_start_line;
 
-    // extern YYSTYPE yylval;
     void yyerror(char *);
     SymbolInfo* symbol;
     extern SymbolTable* table;
@@ -334,31 +331,6 @@ DIGIT [0-9]+
 
 
 %%
-
-/* int main(int argc, char *argv[]) {
-
-    if(argc != 2) {
-        printf("Please input the fileName\n");
-        return 1;
-    }
-
-    FILE *finp = fopen(argv[1], "r");
-
-    if(!finp) {
-        printf("Cannot open the input file\n");
-        return 1;
-    }
-
-    yyin = finp;
-	yylex();
-    fprintf(logout, "Total lines: %d\n", line_count);
-    fprintf(logout, "Total errors: %d\n", total_error);
-	fclose(yyin);
-	fclose(tokenout);
-	fclose(logout);
-
-	return 0;
-} */
 
 void print_log(const char *type, const char *symbol){
     // fprintf(logout, "Line no. %d: Token <%s> Lexeme %s found\n\n", line_count, type, symbol);

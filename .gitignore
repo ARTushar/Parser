@@ -3,6 +3,10 @@
 lexer.c
 y.tab.c
 y.tab.h
+test.cpp
+test
+test2
+test2.c
 1605070_log.txt
 1605070_error.txt
 .vscode/*
