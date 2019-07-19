@@ -4,7 +4,7 @@ int a[20], b[30];
 float c[30];
 int func1;
 void func1(int, float);
-int func2(float a, float b){
+int func2(float a, float a){
     int x[20];
     return x;
 }
@@ -27,5 +27,6 @@ int main() {
     func2[1] = a && func1;
     mara = 6;
     a = func4();
+    func1 = a();
     return 0;
 }

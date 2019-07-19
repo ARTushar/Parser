@@ -238,7 +238,16 @@ parameter_list  : parameter_list COMMA type_specifier ID {
 	$$->parameterList.push_back($3->getName());
 	fprintf(logout, "\n%s\n\n", str.c_str());
 
-	parameters.push_back(make_pair($4->getName(), $3->getName()));
+	bool duplicateName = false;
+	for(int i = 0; i < parameters.size(); i++) {
+		if(parameters[i].first == $4->getName()){
+			duplicateName = true;
+			break;
+		}
+	}
+	if(duplicateName) {
+		fprintf(errorout, "Error at line %d : multiple definition of '%s'\n\n", line_count, $4->getName().c_str());
+	} else parameters.push_back(make_pair($4->getName(), $3->getName()));
 
 	delete $1;
 	delete $3;
