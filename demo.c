@@ -3,8 +3,9 @@ int func(int a){
 }
 
 float foo(int a, int b){
-	
+	return 3.3;
 }
+void mara(){}
 
 int hala(int c) {
 	return 3;

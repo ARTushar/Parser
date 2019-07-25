@@ -163,8 +163,15 @@ func_definition : function_first_part_1 compound_statement {
 			if(symbol){
 				if(symbol->isDefined){
 				fprintf(errorout, "Error at line %s : redefinition of '%s'\n\n", $1->parameterList[0].c_str(), $1->getType().c_str());
+				serror_count++;
 				} else {
 					symbol->isDefined = true;
+					if(!hasReturnType && symbol->parameterList[0] != "void") {
+						fprintf(errorout, "Error at line  %d : function body has no return statement\n\n", line_count);
+						serror_count++;
+					} else {
+						hasReturnType = false;
+					}
 				}
 			}
 
