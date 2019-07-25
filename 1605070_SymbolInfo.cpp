@@ -8,11 +8,13 @@ SymbolInfo::SymbolInfo(){
     name = "";
     type = "";
     next = nullptr;
+    isDefined = false;
 }
 
 SymbolInfo::SymbolInfo(string name, string type)
 : name(std::move(name)), type(std::move(type)) {
     next = nullptr;
+    isDefined = false;
 }
 
 const string & SymbolInfo::getName() const {

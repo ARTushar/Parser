@@ -1,21 +1,22 @@
 int func(int a){
-	return a
+	return a;
 }
 
-int foo(int a, int b);
+float foo(int a, int b){
+	
+}
+
+int hala(int c) {
+	return 3;
+}
+
+
 void lol(float a, float b);
 
 int main(){
-	int a[2],c,i,j  float c
-	a[2.5]=1;
-	i=2.3;
-	j=2%3.7;
-	a=4;
-	func(a);
-	b=8;
-    println(b);
-    for(a; b; c){
-
-    }
+	int a;
+	a = 5;
+	//func(5)
+	a = foo(3,2);
 	return 0;
 }

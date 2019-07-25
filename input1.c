@@ -2,6 +2,8 @@ int a, b, c, d;
 float x, y, z;
 
 void func3(int, float, float);
+void func3(int, float, float);
+void func3(int, float, float);
 float func1(int a, float, int);
 int func2(float a, float b) {
     int c, d;
@@ -157,6 +159,7 @@ float func1(int a, float b, int c){
     c--;
 
 }
+void func3(int, float, float);
 
 int main(){
     int a, b;

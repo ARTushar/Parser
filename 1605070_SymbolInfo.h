@@ -17,6 +17,7 @@ private:
 
 public:
     vector<string> parameterList;
+    bool isDefined;
 
     SymbolInfo();
 

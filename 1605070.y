@@ -20,16 +20,19 @@ SymbolTable *table = new SymbolTable(30, logout);
 vector<pair<string, string>> parameters;
 bool parameterSaved = false;
 string functionReturnType = "";
+bool hasReturnType = false;
 bool matchFunction(vector<string> &, vector<string> &);
 
 
-void yyerror(char *s)
+void yyerror(const char *s)
 {
 	//write your code
-	fprintf(logout, "%s at line %d\n\n", s, line_count);
+	fprintf(logout, "Error at line %d : %s\n\n", line_count, s);
 }
 
 %}
+
+%error-verbose
 
 %union {
 	SymbolInfo* info;
@@ -131,6 +134,21 @@ func_definition : function_first_part_1 compound_statement {
 	string str = $1->getName() + " " + $2->getName();
 	$$->setName(str);
 	fprintf(logout, "\n%s\n\n", str.c_str());
+	SymbolInfo* symbol = table->lookUp($1->getType());
+	if(symbol){
+		if(symbol->isDefined){
+			fprintf(errorout, "Error at line %s : redefinition of '%s'\n\n", $1->parameterList[0].c_str(), $1->getType().c_str());
+			serror_count++;
+		} else {
+			symbol->isDefined = true;
+			if(!hasReturnType && symbol->parameterList[0] != "void") {
+				fprintf(errorout, "Error at line  %d : function body has no return statement\n\n", line_count);
+				serror_count++;
+			} else {
+				hasReturnType = false;
+			}
+		}
+	} 
 
 	delete $1;
 	delete $2;
@@ -141,6 +159,14 @@ func_definition : function_first_part_1 compound_statement {
 			string str = $1->getName() + " " + $2->getName();
 			$$->setName(str);
 			fprintf(logout, "\n%s\n\n", str.c_str());
+			SymbolInfo* symbol = table->lookUp($1->getType());
+			if(symbol){
+				if(symbol->isDefined){
+				fprintf(errorout, "Error at line %s : redefinition of '%s'\n\n", $1->parameterList[0].c_str(), $1->getType().c_str());
+				} else {
+					symbol->isDefined = true;
+				}
+			}
 
 			delete $1;
 			delete $2;
@@ -167,7 +193,11 @@ function_first_part_1 : type_specifier ID LPAREN parameter_list RPAREN {
 				fprintf(errorout, "Erorr at line %d : conflicting types for  '%s'\n\n", line_count, $2->getName().c_str());
 				serror_count++;
 				$$->setName("error");
-			} else functionReturnType = $1->getName();
+			} else {
+				functionReturnType = $1->getName();
+				$$->setType($2->getName());
+				$$->parameterList.push_back(to_string(line_count));
+			}
 		}
 		else {
 			fprintf(errorout, "Erorr at line %d : '%s' redeclared as different kind of symbol\n\n", line_count, $2->getName().c_str());
@@ -181,6 +211,8 @@ function_first_part_1 : type_specifier ID LPAREN parameter_list RPAREN {
 		symbol->parameterList.insert(symbol->parameterList.end(), $4->parameterList.begin(), $4->parameterList.end());
 		symbol->parameterList.push_back("function");
 		functionReturnType = $1->getName();
+		$$->setType($2->getName());
+		$$->parameterList.push_back(to_string(line_count));
 		table->insert(symbol);
 	}
 
@@ -205,7 +237,11 @@ function_first_part_2:  type_specifier ID LPAREN RPAREN {
 				fprintf(errorout, "Erorr at line %d : conflicting types for  '%s'\n\n", line_count, $2->getName().c_str());
 				$$->setName("error");
 				serror_count++;
-			} else functionReturnType = $1->getName();
+			} else {
+				functionReturnType = $1->getName();
+				$$->setType($2->getName());
+				$$->parameterList.push_back(to_string(line_count));
+			}
 		}
 		else {
 			fprintf(errorout, "Erorr at line %d : '%s' redeclared as different kind of symbol\n\n", line_count, $2->getName().c_str());
@@ -218,6 +254,8 @@ function_first_part_2:  type_specifier ID LPAREN RPAREN {
 		symbol->parameterList.push_back($1->getName());
 		symbol->parameterList.push_back("function");
 		functionReturnType = $1->getName();
+		$$->setType($2->getName());
+		$$->parameterList.push_back(to_string(line_count));
 
 		table->insert(symbol);
 	}
@@ -605,6 +643,7 @@ statement : var_declaration {
 		  if(functionReturnType != $2->getType() && $2->getType() != "error"){
 			  fprintf(errorout, "Error at line %d : function return type not matched(have '%s' and '%s')\n\n", line_count, functionReturnType.c_str(), $2->getType().c_str());
 		  }
+		  hasReturnType = true;
 		  $$->setName(str);
 		  fprintf(logout, "\n%s\n\n", str.c_str());
 		  delete $2;
