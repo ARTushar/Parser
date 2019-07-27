@@ -649,6 +649,7 @@ statement : var_declaration {
 		  string str = "return " + $2->getName() + ";\n";
 		  if(functionReturnType != $2->getType() && $2->getType() != "error"){
 			  fprintf(errorout, "Error at line %d : function return type not matched(have '%s' and '%s')\n\n", line_count, functionReturnType.c_str(), $2->getType().c_str());
+			  serror_count++;
 		  }
 		  hasReturnType = true;
 		  $$->setName(str);
@@ -723,7 +724,8 @@ variable : ID {
 				if(symbol->parameterList[symbol->parameterList.size()-1] == "array") {
 					$$->setType(symbol->parameterList[0]);
 					string size = symbol->parameterList[1];
-					if(stoi($3->getName()) >= stoi(size)){
+					bool has_only_digits = ($3->getName().find_first_not_of( "0123456789" ) == string::npos);
+					if(has_only_digits && stoi($3->getName()) >= stoi(size)){
 						fprintf(errorout, "Error at line %d : Array index out of bound (array size '%s', used index '%s')\n\n", line_count, size.c_str(), $3->getName().c_str());
 						serror_count++;
 					}
